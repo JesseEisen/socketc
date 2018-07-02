@@ -92,27 +92,27 @@ sockbind(int fd, char *address, sockinfo *si)
 
 	switch(si->domain){
 	case AF_INET:
-				si->addr.addr4.sin_family = AF_INET; 
-				si->addr.addr4.sin_port   = htons(iport); 
-				if(inet_pton(AF_INET, ip, &(si->addr.addr4.sin_addr)) <= 0){ 
-					printf("invalid ipv4 address\n"); 
-					goto BINDERR;
-				}
-				break;
-	case AF_INET6:
-				si->addr.addr6.sin6_family = AF_INET6; 
-				si->addr.addr6.sin6_port   = htons(iport); 
-				if(inet_pton(AF_INET6, ip, &(si->addr.addr6.sin6_addr)) <= 0){ 
-					printf("invalid ipv6 address\n"); 
-					goto BINDERR;
-				}
-				break;
-	case AF_UNIX:
-				//donothing
-				break;
-	default:
-				printf("invalid domain\n");
+			si->addr.addr4.sin_family = AF_INET; 
+			si->addr.addr4.sin_port   = htons(iport); 
+			if(inet_pton(AF_INET, ip, &(si->addr.addr4.sin_addr)) <= 0){ 
+				printf("invalid ipv4 address\n"); 
 				goto BINDERR;
+			}
+			break;
+	case AF_INET6:
+			si->addr.addr6.sin6_family = AF_INET6; 
+			si->addr.addr6.sin6_port   = htons(iport); 
+			if(inet_pton(AF_INET6, ip, &(si->addr.addr6.sin6_addr)) <= 0){ 
+				printf("invalid ipv6 address\n"); 
+				goto BINDERR;
+			}
+			break;
+	case AF_UNIX:
+			//donothing
+			break;
+	default:
+			printf("invalid domain\n");
+			goto BINDERR;
 	}
 
 	if(sockreuseaddr(fd) < 0){
