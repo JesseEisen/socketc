@@ -19,15 +19,15 @@ struct sockinfo
 static int
 sockcreate(char *network, sockinfo *si)
 {
-	if(strcmp(network, "tcp") == 0){
+	if(strcmp(network, "tcp") == 0)
 		si->domain = AF_INET;
-	}else if(strcmp(network, "tcp4") == 0){
-		si->domain = AF_INET;
-	}else if(strcmp(network, "tcp6") == 0){
-		si->domain = AF_INET6;
-	}else if(strcmp(network, "unix") == 0){
-		si->domain = AF_UNIX;
-	}else{
+	else if(strcmp(network, "tcp4") == 0)
+	   si->domain = AF_INET;
+	else if(strcmp(network, "tcp6") == 0)
+	   si->domain = AF_INET6;
+	else if(strcmp(network, "unix") == 0)
+	   si->domain = AF_UNIX;
+	else{
 		printf("error network");  // should change to a good practise
 		return -1;
 	}
@@ -44,9 +44,8 @@ sockreuseaddr(int sockfd)
 	int on = 1;
 
 	ret = setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, (void *)&on, sizeof(on));
-	if (ret < 0) {
+	if (ret < 0)
 		return -1;
-	}
 
 	return 0;
 }
@@ -70,20 +69,18 @@ sockbind(int fd, char *address, sockinfo *si)
 		goto BINDERR;
 	}
 	
-	if(raw == port){
+	if(raw == port)
 		ip = strdup("127.0.0.1");
-	}else{
+	else
 		ip = raw;
-	}
 
 	*port++ = '\0';
 
 	/* like: 127.0.0.1:*/
-	if(*port == '\0'){
+	if(*port == '\0')
 		iport = 0; //auto assigned
-	}else{
+	else
 		iport = atoi(port);
-	}
 
 	if(iport < 10 || iport > 65535){
 		printf("invalid port number\n");
@@ -130,6 +127,7 @@ sockbind(int fd, char *address, sockinfo *si)
 BINDERR:
 	if(ip != NULL)
 		free(ip);
+
 	free(raw);
 	return res;
 }
@@ -172,13 +170,13 @@ netlistenb(char *network, char *address)
 
 	memset(&hints, 0, sizeof hints);
 
-	if(strcmp(network, "tcp") == 0){
+	if(strcmp(network, "tcp") == 0)
 		hints.ai_family = AF_UNSPEC;    // use ipv4 or ipv6
-	}else if(strcmp(network, "tcp4") == 0){
+	else if(strcmp(network, "tcp4") == 0)
 		hints.ai_family = AF_INET;      // ipv4 only
-	}else if(strcmp(network, "tcp6") == 0){
+	else if(strcmp(network, "tcp6") == 0)
 		hints.ai_family = AF_INET6;     // inpv6 only
-	}else{
+	else{
 		fprintf(stderr, "invalid network format\n");
 		return -1;
 	}
