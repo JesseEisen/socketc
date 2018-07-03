@@ -13,8 +13,29 @@
 
 #define MAXBACKLOG  128
 
+typedef struct Sockinfo Sockinfo;
+struct Sockinfo
+{
+	int domain;
+	int type;
+	union
+	{
+		struct sockaddr_in  addr4;
+		struct sockaddr_in6 addr6;
+	}addr;
+	char straddr[INET6_ADDRSTRLEN];
+};
+
+typedef struct Conn Conn;
+struct Conn
+{
+	int     	 fd;
+	Sockinfo 	*si;
+};
+
 extern int netlisten(char *, char *);
 extern int netlistenb(char *, char *);
+extern Conn *dial(char *, char *);
 
 #endif
 

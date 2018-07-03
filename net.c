@@ -1,23 +1,10 @@
 #include "net.h"
 
-typedef struct sockinfo sockinfo;
-struct sockinfo
-{
-	int domain;
-	int type;
-	int protocol;
-	union
-	{
-		struct sockaddr_in  addr4;
-		struct sockaddr_in6 addr6;
-	}addr;
-};
-
 /*
  * network can be "tcp", "tcp4", "tcp6", "unix"
  */
 static int
-sockcreate(char *network, sockinfo *si)
+parsenetwork(char *network, Sockinfo *si)
 {
 	if(strcmp(network, "tcp") == 0)
 		si->domain = AF_INET;
@@ -34,7 +21,8 @@ sockcreate(char *network, sockinfo *si)
 
 	si->type = SOCK_STREAM;
 
-	return socket(si->domain, si->type, 0);
+	return 0;
+
 }
 
 static int
@@ -51,7 +39,7 @@ sockreuseaddr(int sockfd)
 }
 
 static int
-sockbind(int fd, char *address, sockinfo *si)
+parseaddress(char *address, Sockinfo *si)
 {
 	int   iport, res = -1;
 	char *port = NULL;
@@ -69,12 +57,15 @@ sockbind(int fd, char *address, sockinfo *si)
 		goto BINDERR;
 	}
 	
+	
 	if(raw == port)
 		ip = strdup("127.0.0.1");
-	else
-		ip = raw;
+	else{
+		*port = '\0';
+		ip = strdup(raw);
+	}
 
-	*port++ = '\0';
+	port += 1;
 
 	/* like: 127.0.0.1:*/
 	if(*port == '\0')
@@ -112,42 +103,62 @@ sockbind(int fd, char *address, sockinfo *si)
 			goto BINDERR;
 	}
 
-	if(sockreuseaddr(fd) < 0){
-		fprintf(stderr, "socket opt:%s\n", strerror(errno));
-		goto BINDERR;
-	}
-
-	if(bind(fd, (struct sockaddr *)&si->addr.addr4, sizeof(si->addr.addr4)) < 0){
-		printf("socket bind error\n");
-		goto BINDERR;
-	}
-	
 	res = 0;
+	strcpy(si->straddr, ip);
 
 BINDERR:
 	if(ip != NULL)
 		free(ip);
 
-	free(raw);
+	if(raw != NULL)
+		free(raw);
+	
 	return res;
 }
 
+#define BINDWRAP(v) do{ \
+	if(bind(fd, (struct sockaddr *)&si.addr.addr##v, sizeof(si.addr.addr##v)) < 0){ \
+		fprintf(stderr, "socket bind error\n"); \
+		return -1;\
+	}\
+}while(0)
 
 int
 netlisten(char *network, char *address)
 {
 	int      fd;
-	sockinfo si;
+	Sockinfo si;
 
-	fd = sockcreate(network, &si);
+	if(parsenetwork(network, &si) < 0){
+		fprintf(stderr, "network parse error\n");
+		return -1;
+	}
+
+	fd = socket(si.domain, si.type, 0);
 	if(fd == -1){
 		fprintf(stderr, "open socket error: %s\n", strerror(errno));
 		return -1;
 	}
 
-	if(sockbind(fd, address, &si) < 0){
-		fprintf(stderr, "bind socket error: %s\n", strerror(errno));
+	if(parseaddress(address, &si) < 0){
+		fprintf(stderr, "address parse error\n");
 		return -1;
+	}
+
+	if(sockreuseaddr(fd) < 0){
+		fprintf(stderr, "socket opt:%s\n", strerror(errno));
+		return -1;
+	}
+
+	switch(si.domain){
+	case AF_INET:
+			BINDWRAP(4);
+			break;
+	case AF_INET6:
+			BINDWRAP(6);
+	default:
+			fprintf(stderr, "unsupport domain\n");
+			return -1;
 	}
 
 	if(listen(fd, MAXBACKLOG) < 0){
@@ -226,8 +237,85 @@ netlistenb(char *network, char *address)
 		goto NETERR;
 	}
 
+	freeaddrinfo(res);
+
 	ret = fd;
+
 NETERR:
 	free(raw);
 	return ret;
+}
+
+
+#define CONNECTWRAP(v) do{ \
+	if(connect(fd, (struct sockaddr *)&si->addr.addr##v, sizeof(si->addr.addr##v)) < 0){ \
+		fprintf(stderr, "socket connect error\n"); \
+		goto DIALERR; \
+	}\
+}while(0)
+
+
+/* client */
+Conn *
+dial(char *network, char *address)
+{
+	Conn      *conn = NULL;
+	Sockinfo  *si;
+	int        fd;
+
+	if((si=malloc(sizeof(Sockinfo))) == NULL){
+		fprintf(stderr, "malloc space error\n");
+		return NULL;
+	}
+
+	if(parsenetwork(network, si) < 0){
+		fprintf(stderr, "parse network error\n");
+		goto DIALERR;
+	}
+
+	fd = socket(si->domain, si->type, 0);
+	if(fd < 0){
+		fprintf(stderr, "create socket error: %s\n", strerror(errno));
+		goto DIALERR;
+	}
+
+	if(parseaddress(address, si) < 0){
+		fprintf(stderr, "parse address error\n");
+		goto DIALERR;
+	}
+
+	switch(si->domain){
+	case AF_INET:
+			CONNECTWRAP(4);
+			break;
+	case AF_INET6:
+			CONNECTWRAP(6);
+			break;
+	default:
+			fprintf(stderr, "unsupport domain\n");
+			goto DIALERR;
+	}
+
+	conn = malloc(sizeof(Conn));
+	if(conn == NULL){
+		fprintf(stderr, "malloc error\n");
+		goto DIALERR;
+	}
+
+	conn->fd = fd;
+	conn->si = malloc(sizeof(Sockinfo));
+	if(!conn->si){
+		fprintf(stderr, "malloc error\n");
+		goto DIALERR;
+	}
+
+	memcpy(conn->si, si, sizeof(Sockinfo));
+	free(si);
+	return conn;
+
+DIALERR:
+	free(si);
+	if(conn != NULL)
+		free(conn);
+	return NULL;
 }
