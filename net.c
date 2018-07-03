@@ -9,11 +9,11 @@ parsenetwork(char *network, Sockinfo *si)
 	if(strcmp(network, "tcp") == 0)
 		si->domain = AF_INET;
 	else if(strcmp(network, "tcp4") == 0)
-	   si->domain = AF_INET;
+		si->domain = AF_INET;
 	else if(strcmp(network, "tcp6") == 0)
-	   si->domain = AF_INET6;
+		si->domain = AF_INET6;
 	else if(strcmp(network, "unix") == 0)
-	   si->domain = AF_UNIX;
+		si->domain = AF_UNIX;
 	else{
 		printf("error network");  // should change to a good practise
 		return -1;
@@ -156,6 +156,7 @@ netlisten(char *network, char *address)
 			break;
 	case AF_INET6:
 			BINDWRAP(6);
+			break;
 	default:
 			fprintf(stderr, "unsupport domain\n");
 			return -1;
