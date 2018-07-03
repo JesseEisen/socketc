@@ -247,6 +247,66 @@ NETERR:
 	return ret;
 }
 
+Conn *
+netaccept(int fd)
+{
+	Conn               *conn = NULL;
+	struct sockaddr     sa;
+	struct sockaddr_in  si;
+	struct sockaddr_in6 si6;
+
+	conn = malloc(sizeof(Conn));
+	if(conn == NULL)
+		return NULL;
+
+	if((conn->fd=accpet(fd, &sa, sizeof(struct sockaddr))) < 0)
+		goto ACCEPTERR;
+
+	conn->si=malloc(sizeof(Sockinfo));
+	if(conn->si == NULL)
+		goto ACCEPTERR;
+
+	if(sa.sa_family == AF_INET){
+		si = (struct sockaddr_in)sa;
+		conn->si.domain = si.sin_family;
+		conn->si.type   = SOCK_STREAM;
+		if(inet_ntop(AF_INET, &si.sin_addr, conn->si.straddr, INET6_ADDRSTRLEN) < 0)
+			goto ACCEPTERR;
+	}else if(sa.sa_family == AF_INET6){
+		si6 = (struct sockaddr_in6)sa;
+		conn->si.domain = si6.sin6_family;
+		conn->si.type   = SOCK_STREAM;
+		if(inet_ntop(AF_INET, &si6.sin6_addr, conn->si.straddr, INET6_ADDRSTRLEN) < 0)
+			goto ACCEPTERR;
+	}
+
+	return conn;
+
+ACCEPTERR:
+	if(conn->si != NULL)
+		free(conn);
+	free(conn);
+	return NULL;
+}
+
+/* noblock accept */
+Conn *
+netaceptnb(int fd)
+{
+	Conn *conn = NULL;
+	int   flags;
+
+	conn = netaccept(fd);
+	if(conn == NULL)
+		return NULL;
+	
+	flags = fcntl(conn->fd, F_GETFL, 0);
+	fcntl(conn->fd, F_SETFL, flags|O_NONBLOCK);
+
+	return conn;
+	
+}
+
 
 #define CONNECTWRAP(v) do{ \
 	if(connect(fd, (struct sockaddr *)&si->addr.addr##v, sizeof(si->addr.addr##v)) < 0){ \
@@ -320,3 +380,96 @@ DIALERR:
 		free(conn);
 	return NULL;
 }
+
+
+int
+netread(int sockfd, void *data, int len)
+{
+	if(len == 0)
+		return 0;
+
+	int ret        = 0;
+	int tmp        = 0;
+	int retry 	   = 0;
+	fd_set    	   rfds;
+	struct timeval tv;
+
+	while(1){
+		FD_ZERO(&rfds);
+		FD_SET(sockfd, &rfds);
+		tv.tv_sec  = READ_TIMEOUT;
+		tv.tv_usec = 0;
+
+		ret = select(sockfd+1, &rfds, NULL, NULL, &tv);
+		if(ret == -1){
+			fprintf(stderr, "select failed\n");
+			return -1;
+		}else if(ret > 0){
+			if(FD_ISSET(sockfd, &rfds)){
+				tmp = recv(sockfd, data, len, 0);
+				if(tmp == 0){
+					fprintf(stderr, "connect closed by peer\n");
+					return CONN_CLOSE;
+				}else if(tmp < 0){
+					if(errno != EAGAIN && errno != EWOULDBLOCK)
+						return -1;
+				}else
+					return tmp;
+			}
+		}else{
+			fprintf(stderr, "wait for read failed");
+			return -1;
+		}
+		retry++;
+		if(retry >= READ_RETRY_MAX)
+			break;
+	}
+	
+	return 0;
+}
+
+int
+netwrite(int sockfd, void *data, int len)
+{
+	int 		   wlen = 0;
+	int 		   tmp  = 0;
+	int 		   ret  = 0;
+	fd_set 		   wfds;
+	struct timeval tv;
+
+	while(len > wlen){
+		FD_ZERO(&wfds);
+		FD_SET(sockfd, &wfds);
+		tv.tv_sec  = WRITE_TIMEOUT;
+		tv.tv_usec = 0;
+
+		ret = select(sockfd+1, NULL, &wfds, NULL, &tv);
+		if(ret > 0){
+			if(FD_ISSET(sockfd, &wfds)){
+				tmp = send(sockfd, data+wlen, len-wlen, 0);
+				if(tmp <= 0){
+					if(errno != EAGAIN && errno != EWOULDBLOCK){
+						return -1;
+					}
+					continue;
+				}
+				wlen += tmp;
+			}else
+				return -1;
+		}else if(ret < 0)
+			return -1;
+	}
+}
+
+int
+closerd(int fd)
+{
+	return shutdown(fd, SHUT_RD);
+}
+
+int 
+closewr(int fd)
+{
+	return shutdown(fd, SHUT_WR);
+}
+
