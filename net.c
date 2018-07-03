@@ -388,10 +388,10 @@ netread(int sockfd, void *data, int len)
 	if(len == 0)
 		return 0;
 
-	int ret        = 0;
-	int tmp        = 0;
-	int retry 	   = 0;
-	fd_set    	   rfds;
+	int            ret   = 0;
+	int            tmp   = 0;
+	int            retry = 0;
+	fd_set         rfds;
 	struct timeval tv;
 
 	while(1){
