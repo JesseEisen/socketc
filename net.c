@@ -444,19 +444,17 @@ netwrite(int sockfd, void *data, int len)
 		tv.tv_usec = 0;
 
 		ret = select(sockfd+1, NULL, &wfds, NULL, &tv);
-		if(ret > 0){
-			if(FD_ISSET(sockfd, &wfds)){
-				tmp = send(sockfd, data+wlen, len-wlen, 0);
-				if(tmp <= 0){
-					if(errno != EAGAIN && errno != EWOULDBLOCK){
-						return -1;
-					}
-					continue;
-				}
-				wlen += tmp;
-			}else
-				return -1;
-		}else if(ret < 0)
+		if(ret < 0)
+			return -1;
+		if(FD_ISSET(sockfd, &wfds)){
+			tmp = send(sockfd, data+wlen, len-wlen, 0);
+			if(tmp <= 0){
+				if(errno != EAGAIN && errno != EWOULDBLOCK)
+					return -1;
+				continue;
+			}
+			wlen += tmp;
+		}else
 			return -1;
 	}
 }
